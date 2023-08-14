@@ -79,11 +79,6 @@ add_definitions("-DBOOST_ASIO_DISABLE_STD_CHRONO")
 
 if(MSVC)
   add_definitions(" -DWIN32_LEAN_AND_MEAN -DNOMINMAX")
-# Enable testing with CTest. This defines the BUILD_TESTING option.
-# Disable tests by default when cross compiling.
-set(build_testing_default TRUE)
-if(CMAKE_CROSSCOMPILING)
-  set(build_testing_default FALSE)
 endif()
 option(BUILD_TESTING "Build the testing tree." "${build_testing_default}")
 include(CTest)
