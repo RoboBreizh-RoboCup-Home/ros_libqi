@@ -77,8 +77,11 @@ include(cmake/MakePackageConfigFile.cmake)
 add_definitions("-DBOOST_FILESYSTEM_VERSION=3")
 add_definitions("-DBOOST_ASIO_DISABLE_STD_CHRONO")
 
-if(MSVC)
-  add_definitions(" -DWIN32_LEAN_AND_MEAN -DNOMINMAX")
+# Enable testing with CTest. This defines the BUILD_TESTING option.
+# Disable tests by default when cross compiling.
+set(build_testing_default TRUE)
+if(CMAKE_CROSSCOMPILING)
+  set(build_testing_default FALSE)
 endif()
 option(BUILD_TESTING "Build the testing tree." "${build_testing_default}")
 include(CTest)
@@ -97,15 +100,6 @@ if(IS_GCC_OR_CLANG)
 elseif(MSVC)
   add_compile_options(/W3)
 endif()
-
-if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++11")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
-endif()
-
-# Remove this line to use QT if usable
-set(WITH_QT5_CORE OFF)
 
 # Add QI_WITH_TESTS definitions to all targets in the build, to enable export
 # of some internal symbols needed by tests.
@@ -230,49 +224,221 @@ set_target_properties(
     EXPORT_NAME internal::cxx_standard
 )
 
-set(KA_H
-  ka/algorithm.hpp
-  ka/base64.hpp
-  ka/ark/inputiter.hpp
-  ka/ark/mutable.hpp
-  ka/concept.hpp
-  ka/conceptpredicate.hpp
-  ka/empty.hpp
-  ka/errorhandling.hpp
-  ka/flatten.hpp
-  ka/functional.hpp
-  ka/functor.hpp
-  ka/functorcontainer.hpp
-  ka/indexed.hpp
-  ka/integersequence.hpp
-  ka/iterator.hpp
-  ka/macro.hpp
-  ka/macroregular.hpp
-  ka/memory.hpp
-  ka/moveoncopy.hpp
-  ka/mutablestore.hpp
-  ka/mutex.hpp
-  ka/opt.hpp
-  ka/productiter.hpp
-  ka/range.hpp
-  ka/relationpredicate.hpp
-  ka/scoped.hpp
-  ka/sha1.hpp
-  ka/src.hpp
-  ka/testutils.hpp
-  ka/typetraits.hpp
-  ka/unit.hpp
-  ka/uri.hpp
-  ka/uri/io.hpp
-  ka/uri/uri_fwd.hpp
-  ka/uri/uri.hpp
-  ka/uri/parsing.hpp
-  ka/utility.hpp
+##############################################################################
+# Library: ka
+##############################################################################
+add_library(ka INTERFACE)
+add_library(qi::ka ALIAS ka)
+
+target_sources(
+  ka
+
+  PUBLIC
+    FILE_SET source_headers
+      TYPE HEADERS
+      FILES
+        ka/algorithm.hpp
+        ka/ark/inputiter.hpp
+        ka/ark/mutable.hpp
+        ka/base64.hpp
+        ka/concept.hpp
+        ka/conceptpredicate.hpp
+        ka/empty.hpp
+        ka/errorhandling.hpp
+        ka/flatten.hpp
+        ka/functional.hpp
+        ka/functor.hpp
+        ka/functorcontainer.hpp
+        ka/indexed.hpp
+        ka/integersequence.hpp
+        ka/iterator.hpp
+        ka/macro.hpp
+        ka/macroregular.hpp
+        ka/memory.hpp
+        ka/moveoncopy.hpp
+        ka/mutablestore.hpp
+        ka/mutex.hpp
+        ka/opt.hpp
+        ka/parse.hpp
+        ka/productiter.hpp
+        ka/range.hpp
+        ka/relationpredicate.hpp
+        ka/scoped.hpp
+        ka/sha1.hpp
+        ka/src.hpp
+        ka/testutils.hpp
+        ka/typetraits.hpp
+        ka/unit.hpp
+        ka/uri.hpp
+        ka/uri/io.hpp
+        ka/uri/parsing.hpp
+        ka/uri/uri.hpp
+        ka/uri/uri_fwd.hpp
+        ka/utility.hpp
+        ka/zero.hpp
 )
 
-#### }}}
+target_include_directories(
+  ka
+  INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+)
 
-qi_install_header(${QI_H} ${QITYPE_H} ${QIM_H} ${QIPERF_H} ${KA_H} KEEP_RELATIVE_PATHS)
+target_link_libraries(
+  ka
+  INTERFACE
+    qi::internal::cxx_standard
+    Boost::headers
+    Boost::date_time
+    Boost::thread
+)
+
+##############################################################################
+# Library: qi_objects
+##############################################################################
+add_library(qi_objects OBJECT)
+add_library(qi::internal::qi_objects ALIAS qi_objects)
+
+target_sources(
+  qi_objects
+
+  PUBLIC
+    FILE_SET source_headers
+      TYPE HEADERS
+      FILES
+        qi/actor.hpp
+        qi/anyfunction.hpp
+        qi/anymodule.hpp
+        qi/anyobject.hpp
+        qi/anyvalue.hpp
+        qi/api.hpp
+        qi/application.hpp
+        qi/applicationsession.hpp
+        qi/assert.hpp
+        qi/async.hpp
+        qi/atomic.hpp
+        qi/binarycodec.hpp
+        qi/buffer.hpp
+        qi/clock.hpp
+        qi/detail/async.hxx
+        qi/detail/clock.hxx
+        qi/detail/eventloop.hxx
+        qi/detail/executioncontext.hpp
+        qi/detail/future.hxx
+        qi/detail/future_fwd.hpp
+        qi/detail/futurebarrier.hpp
+        qi/detail/futureunwrap.hpp
+        qi/detail/log.hxx
+        qi/detail/mpl.hpp
+        qi/detail/print.hpp
+        qi/detail/trackable.hxx
+        qi/either.hpp
+        qi/eventloop.hpp
+        qi/flags.hpp
+        qi/future.hpp
+        qi/futuregroup.hpp
+        qi/getenv.hpp
+        qi/iocolor.hpp
+        qi/jsoncodec.hpp
+        qi/log.hpp
+        qi/log/consoleloghandler.hpp
+        qi/log/csvloghandler.hpp
+        qi/log/fileloghandler.hpp
+        qi/log/headfileloghandler.hpp
+        qi/log/tailfileloghandler.hpp
+        qi/macro.hpp
+        qi/messaging/authprovider.hpp
+        qi/messaging/authproviderfactory.hpp
+        qi/messaging/autoservice.hpp
+        qi/messaging/clientauthenticator.hpp
+        qi/messaging/clientauthenticatorfactory.hpp
+        qi/messaging/detail/autoservice.hxx
+        qi/messaging/gateway.hpp
+        qi/messaging/messagesocket_fwd.hpp
+        qi/messaging/servicedirectoryproxy.hpp
+        qi/messaging/serviceinfo.hpp
+        qi/messaging/ssl/detail/ssl.hxx
+        qi/messaging/ssl/ssl.hpp
+        qi/messaging/tcpscheme.hpp
+        qi/numeric.hpp
+        qi/objectuid.hpp
+        qi/os.hpp
+        qi/path.hpp
+        qi/path_conf.hpp
+        qi/perf/dataperf.hpp
+        qi/perf/dataperfsuite.hpp
+        qi/perf/detail/dataperfsuite.hxx
+        qi/perf/measure.hpp
+        qi/periodictask.hpp
+        qi/preproc.hpp
+        qi/property.hpp
+        qi/ptruid.hpp
+        qi/qi.hpp
+        qi/session.hpp
+        qi/signal.hpp
+        qi/signalspy.hpp
+        qi/signature.hpp
+        qi/stats.hpp
+        qi/strand.hpp
+        qi/tag.hpp
+        qi/trackable.hpp
+        qi/translator.hpp
+        qi/type/detail/accessor.hxx
+        qi/type/detail/anyfunction.hxx
+        qi/type/detail/anyfunctionfactory.hxx
+        qi/type/detail/anyiterator.hpp
+        qi/type/detail/anyiterator.hxx
+        qi/type/detail/anyreference.hpp
+        qi/type/detail/anyreference.hxx
+        qi/type/detail/anyvalue.hpp
+        qi/type/detail/anyvalue.hxx
+        qi/type/detail/bindtype.hxx
+        qi/type/detail/buffertypeinterface.hxx
+        qi/type/detail/dynamicobjectbuilder.hxx
+        qi/type/detail/dynamictypeinterface.hxx
+        qi/type/detail/functionsignature.hxx
+        qi/type/detail/futureadapter.hpp
+        qi/type/detail/futureadapter.hxx
+        qi/type/detail/genericobject.hpp
+        qi/type/detail/hasless.hxx
+        qi/type/detail/inttypeinterface.hxx
+        qi/type/detail/listtypeinterface.hxx
+        qi/type/detail/manageable.hpp
+        qi/type/detail/maptypeinterface.hxx
+        qi/type/detail/object.hxx
+        qi/type/detail/objecttypebuilder.hxx
+        qi/type/detail/optionaltypeinterface.hxx
+        qi/type/detail/pointertypeinterface.hxx
+        qi/type/detail/property.hxx
+        qi/type/detail/proxyregister.hpp
+        qi/type/detail/signal.hxx
+        qi/type/detail/staticobjecttype.hpp
+        qi/type/detail/stringtypeinterface.hxx
+        qi/type/detail/structtypeinterface.hxx
+        qi/type/detail/traceanalyzer.hpp
+        qi/type/detail/type.hpp
+        qi/type/detail/type.hxx
+        qi/type/detail/typedispatcher.hxx
+        qi/type/detail/typeimpl.hxx
+        qi/type/detail/typeinterface.hpp
+        qi/type/dynamicobject.hpp
+        qi/type/dynamicobjectbuilder.hpp
+        qi/type/fwd.hpp
+        qi/type/metamethod.hpp
+        qi/type/metaobject.hpp
+        qi/type/metaproperty.hpp
+        qi/type/metasignal.hpp
+        qi/type/objecttypebuilder.hpp
+        qi/type/proxyproperty.hpp
+        qi/type/proxysignal.hpp
+        qi/type/typedispatcher.hpp
+        qi/type/typeinterface.hpp
+        qi/type/typeobject.hpp
+        qi/types.hpp
+        qi/uri.hpp
+        qi/url.hpp
+        qi/uuid.hpp
+        qi/version.hpp
 
   PRIVATE
     src/application.cpp
@@ -419,39 +585,128 @@ qi_install_header(${QI_H} ${QITYPE_H} ${QIM_H} ${QIPERF_H} ${KA_H} KEEP_RELATIVE
     src/version.cpp
 )
 
-qi_stage_cmake(qimodule-config.cmake)
-include(qimodule-config.cmake)
-
-qi_create_lib(qi SHARED
-    ${QI_H}     ${QI_C}
-    ${QITYPE_H} ${QITYPE_C}
-    ${QIM_H}    ${QIM_C}
-    ${QIPERF_H} ${QIPERF_C}
-    ${QI_SOCKET_H}
-    ${KA_H}
-  DEPENDS
-    ASSUME_SYSTEM_INCLUDE
-    BOOST
-    BOOST_ATOMIC
-    BOOST_DATE_TIME
-    BOOST_THREAD
-    BOOST_CHRONO
-    BOOST_FILESYSTEM
-    BOOST_LOCALE
-    BOOST_REGEX
-    BOOST_PROGRAM_OPTIONS
-    BOOST_RANDOM
-  SUBMODULE ${_tp_qi}
-)
-
-
-
-#### Add optional libs {{{
-if(WIN32)
-  qi_use_lib(qi WSOCK IPHLPAPI PSAPI WSA) #Really?
+if(UNIX)
+  check_symbol_exists(_SC_HOST_NAME_MAX "unistd.h" HAVE_SC_HOST_NAME_MAX)
+  if(HAVE_SC_HOST_NAME_MAX)
+    set_source_files_properties(
+      src/os_posix.cpp
+      PROPERTIES
+        COMPILE_DEFINITIONS HAVE_SC_HOST_NAME_MAX
+    )
+  endif()
+  target_sources(
+    qi_objects
+    PRIVATE
+      src/os_posix.cpp
+      src/os_debugger_posix.cpp
+  )
+  if(ANDROID)
+    target_sources(
+      qi_objects
+      PUBLIC
+        FILE_SET source_headers
+          TYPE HEADERS
+          FILES
+            qi/log/androidloghandler.hpp
+      PRIVATE
+        src/androidloghandler.cpp
+        src/os_launch_android.cpp
+    )
+  else()
+    target_sources(
+      qi_objects
+      PRIVATE src/os_launch_posix.cpp
+    )
+  endif()
 endif()
 
-qi_use_lib(qi OPENSSL)
+target_link_libraries(
+  qi_objects
+  PUBLIC
+    qi::internal::cxx_standard
+    qi::ka
+)
+
+set_target_properties(
+  qi_objects
+  PROPERTIES
+    CXX_EXTENSIONS TRUE
+    CXX_VISIBILITY_PRESET hidden
+    POSITION_INDEPENDENT_CODE TRUE
+    EXPORT_NAME internal::qi_objects
+)
+
+if(IS_GCC_OR_CLANG)
+  target_compile_options(
+    qi_objects
+    PRIVATE
+      -Wno-unused-parameter
+      -Werror=return-type
+      -fno-strict-aliasing
+  )
+endif()
+
+if(WIN32)
+  target_sources(
+    qi_objects
+    PRIVATE
+      src/os_launch_win32.cpp
+      src/os_win32.cpp
+      src/os_win32.hpp
+      src/os_debugger_win32.cpp
+  )
+
+  target_compile_definitions(
+    qi_objects
+    PUBLIC
+      _SCL_SECURE_NO_WARNINGS
+      _CRT_SECURE_NO_WARNINGS
+      WIN32_LEAN_AND_MEAN
+      NOMINMAX
+  )
+endif()
+
+# Configure "config.hpp" file.
+#
+# Refer to the "config.hpp.in" file to see what parameters the file defines.
+set(config_hpp_file_path "${CMAKE_CURRENT_BINARY_DIR}/qi/config.hpp")
+configure_file(qi/config.hpp.in "${config_hpp_file_path}")
+target_sources(
+  qi_objects
+  PUBLIC
+    FILE_SET generated_headers
+    TYPE HEADERS
+      BASE_DIRS "${CMAKE_CURRENT_BINARY_DIR}"
+      FILES "${config_hpp_file_path}"
+)
+
+target_include_directories(
+  qi_objects
+  PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+)
+
+target_link_libraries(
+  qi_objects
+  PUBLIC
+    Boost::headers
+    Boost::atomic
+    Boost::chrono
+    Boost::date_time
+    Boost::filesystem
+    Boost::program_options
+    Boost::random
+    Boost::regex
+    Boost::thread
+)
+
+target_compile_definitions(
+  qi_objects
+  PUBLIC
+    BOOST_FILESYSTEM_VERSION=3
+    BOOST_ASIO_DISABLE_STD_CHRONO
+)
 
 if(WITH_BOOST_LOCALE)
   target_compile_definitions(
@@ -476,12 +731,42 @@ if(WITH_BOOST_LOCALE)
   )
 endif()
 
-if (WITH_SYSTEMD)
-  qi_use_lib(qi SYSTEMD)
+target_link_libraries(
+  qi_objects
+  PUBLIC
+    OpenSSL::Crypto
+    OpenSSL::SSL
+)
+
+if(UNIX)
+  target_link_libraries(
+    qi_objects
+    PUBLIC
+      Threads::Threads
+  )
 endif()
 
-if (UNIX)
-  qi_use_lib(qi PTHREAD)
+if(WITH_SYSTEMD)
+  target_compile_definitions(
+    qi_objects
+    PUBLIC
+      WITH_SYSTEMD
+  )
+  target_link_libraries(
+    qi_objects
+    PUBLIC
+      systemd
+  )
+  target_sources(
+    qi_objects
+    PUBLIC
+      FILE_SET source_headers
+        TYPE HEADERS
+        FILES
+          qi/log/journaldloghandler.hpp
+    PRIVATE
+      src/journaldloghandler.cpp
+  )
 endif()
 
 if(ANDROID)
@@ -495,23 +780,212 @@ endif()
 if(WIN32)
   target_link_libraries(qi_objects PUBLIC wsock32 ws2_32 iphlpapi psapi)
 endif()
-#### }}}
 
-qi_stage_lib(qi INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/compat")
+##############################################################################
+# Library: qi
+##############################################################################
+add_library(qi SHARED)
+add_library(qi::qi ALIAS qi)
 
-# Install a share/qi/path.conf so that libqi's sdkPrefix can be found
-file(WRITE "${CMAKE_BINARY_DIR}/path.conf" "# Installed by qibuild. Do not remove\n")
-qi_install_data(${CMAKE_BINARY_DIR}/path.conf SUBFOLDER "qi")
+target_link_libraries(
+  qi
+  PUBLIC
+    qi::ka
+    qi::internal::cxx_standard
+    qi::internal::qi_objects
+)
 
-option(BUILD_EXAMPLES "build examples" ON)
-if (BUILD_EXAMPLES)
-  add_subdirectory("examples")
+set_target_properties(
+  qi
+  PROPERTIES
+    VERSION "${qi_VERSION}"
+    SOVERSION "${qi_VERSION_MAJOR}"
+)
+
+##############################################################################
+# Library: testssl
+##############################################################################
+add_library(testssl STATIC)
+add_library(qi::testssl ALIAS testssl)
+
+# TODO: Move sources in current directory.
+set(
+  libtestssl_base_dir
+  "${CMAKE_CURRENT_LIST_DIR}/tests/messaging/libtestssl"
+)
+
+target_sources(
+  testssl
+  PUBLIC
+    FILE_SET source_headers
+      TYPE HEADERS
+      FILES
+        "${libtestssl_base_dir}/testssl/testssl.hpp"
+      BASE_DIRS "${libtestssl_base_dir}"
+  PRIVATE
+    "${libtestssl_base_dir}/src/testssl.cpp"
+)
+
+target_include_directories(
+  testssl
+  PUBLIC
+    $<BUILD_INTERFACE:${libtestssl_base_dir}>
+)
+
+target_link_libraries(
+  testssl
+  PUBLIC
+    qi::internal::cxx_standard
+    qi::qi
+)
+
+set_target_properties(
+  testssl
+  PROPERTIES
+    POSITION_INDEPENDENT_CODE TRUE
+)
+
+##############################################################################
+# Library: testsession
+#
+# A helper library to test two sessions communicating in various modes
+##############################################################################
+add_library(testsession STATIC)
+add_library(qi::testsession ALIAS testsession)
+
+# TODO: Move sources in current directory.
+set(
+  libtestsession_base_dir
+  "${CMAKE_CURRENT_LIST_DIR}/tests/messaging/libtestsession"
+)
+
+target_sources(
+  testsession
+  PUBLIC
+    FILE_SET source_headers
+      TYPE HEADERS
+      FILES
+        "${libtestsession_base_dir}/testsession/testsession.hpp"
+        "${libtestsession_base_dir}/testsession/testsessionpair.hpp"
+      BASE_DIRS "${libtestsession_base_dir}"
+  PRIVATE
+    "${libtestsession_base_dir}/src/testmode.cpp"
+    "${libtestsession_base_dir}/src/testsessionpair.cpp"
+    "${libtestsession_base_dir}/src/testsession.cpp"
+    "${libtestsession_base_dir}/src/testsession_p.hpp"
+    "${libtestsession_base_dir}/src/testsession_p.cpp"
+    "${libtestsession_base_dir}/src/testsessionerror.cpp"
+    "${libtestsession_base_dir}/src/trafficgenerator.hpp"
+    "${libtestsession_base_dir}/src/trafficgenerator.cpp"
+    "${libtestsession_base_dir}/src/populationgenerator.cpp"
+    "${libtestsession_base_dir}/src/populationgenerator.cpp"
+    "${libtestsession_base_dir}/src/sessioninitializer.hpp"
+    "${libtestsession_base_dir}/src/sessioninitializer.cpp"
+    "${libtestsession_base_dir}/src/defaultservice.hpp"
+    "${libtestsession_base_dir}/src/defaultservice.cpp"
+)
+
+target_include_directories(
+  testsession
+  PUBLIC
+    $<BUILD_INTERFACE:${libtestsession_base_dir}>
+)
+
+target_link_libraries(
+  testsession
+  PUBLIC
+    qi::internal::cxx_standard
+    qi::qi
+    qi::testssl
+)
+
+set_target_properties(
+  testsession
+  PROPERTIES
+    POSITION_INDEPENDENT_CODE TRUE
+)
+
+##############################################################################
+# Installation & export of targets
+#
+# We create 2 package configuration files:
+# - qi
+# - testsession
+#
+# The goal is to support client projects using a previous representation of the
+# package, where a `testsession` package was also available.
+#
+# The export set is the same: `qi-targets`. It is exported twice with different
+# namespaces and filenames.
+##############################################################################
+install(
+  TARGETS ka qi testssl testsession cxx_standard qi_objects
+  EXPORT qi-targets
+  RUNTIME COMPONENT runtime
+  LIBRARY COMPONENT runtime
+  ARCHIVE COMPONENT devel
+  FILE_SET source_headers COMPONENT devel
+  FILE_SET generated_headers COMPONENT devel
+  PUBLIC_HEADER 
+  INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
+)
+
+make_package_config_file(qi-targets qi COMPONENT devel)
+make_package_config_file(qi-targets testsession COMPONENT devel)
+
+##############################################################################
+# qimodule
+##############################################################################
+find_package(
+  qimodule REQUIRED
+  PATHS cmake
+  # Disable CMAKE_FIND_ROOT_PATH modes, when cross-compiling.
+  NO_CMAKE_FIND_ROOT_PATH
+)
+
+set(
+  qimodule_install_cmakedir
+  "${CMAKE_INSTALL_LIBDIR}/cmake/qimodule"
+  CACHE STRING
+  "Path where qimodule CMake files are to be installed."
+)
+
+set(
+  qimodule_config_file_path
+  "${CMAKE_CURRENT_BINARY_DIR}/qimodule-config.cmake"
+)
+
+configure_file(
+  cmake/qimodule-config.cmake
+  "${qimodule_config_file_path}"
+  @ONLY
+)
+
+install(
+  FILES
+    "${qimodule_config_file_path}"
+  DESTINATION "${qimodule_install_cmakedir}"
+  COMPONENT devel
+)
+
+##############################################################################
+# Examples
+##############################################################################
+add_custom_target(examples)
+add_subdirectory(examples)
+
+##############################################################################
+# Tests
+##############################################################################
+add_feature_info(
+  BUILD_TESTING
+  BUILD_TESTING
+  "Enable building project tests."
+)
+
+if(BUILD_TESTING)
+  add_subdirectory(tests)
 endif()
 
 ##############################################################################
 feature_summary(WHAT ALL)
-
-ament_export_include_directories(include)
-ament_export_libraries(qi)
-# ament_package(CONFIG_EXTRAS libqi-extras.cmake.em)
-ament_package()
