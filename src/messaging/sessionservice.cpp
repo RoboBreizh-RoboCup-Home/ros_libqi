@@ -17,13 +17,18 @@ KA_WARNING_DISABLE(4355, )
 qiLogCategory("qimessaging.sessionservice");
 
 namespace qi {
-
-  Session_Service::Session_Service(TransportSocketCache* socketCache,
-                                   ServiceDirectoryClient* sdClient, ObjectRegistrar* server, bool enforceAuth)
+  Session_Service::Session_Service(
+    TransportSocketCache* socketCache,
+    ServiceDirectoryClient* sdClient,
+    ObjectRegistrar* server,
+    boost::optional<ClientAuthenticatorFactoryPtr> clientAuthenticatorFactory)
     : _socketCache(socketCache)
     , _sdClient(sdClient)
     , _server(server)
-    , _enforceAuth(enforceAuth)
+    // Even if authentication is disabled, the factory is used to instantiate an authenticator.
+    // We initialize the factory with one that creates authenticators that do nothing.
+    , _authFactory(clientAuthenticatorFactory.value_or_eval(boost::make_shared<NullClientAuthenticatorFactory>))
+    , _enforceAuth(clientAuthenticatorFactory.has_value())
   {
     _sdClient->serviceRemoved.connect(track([this](unsigned int index, const std::string& service) -> void
     {
@@ -164,7 +169,7 @@ namespace qi {
     }
   }
 
-  void Session_Service::onAuthentication(const MessageSocket::SocketEventData& data, long requestId, MessageSocketPtr socket, ClientAuthenticatorPtr auth, SignalSubscriberPtr old)
+  void Session_Service::onAuthentication(const MessageSocket::SocketEventData& data, long requestId, MessageSocketPtr socket, ClientAuthenticatorPtr auth, boost::optional<SignalLink&> link)
   {
     static const std::string cmsig = typeOf<CapabilityMap>()->signature().toString();
     boost::recursive_mutex::scoped_lock sl(_requestsMutex);
@@ -182,8 +187,8 @@ namespace qi {
 
     if (data.which() == MessageSocket::Event_Error)
     {
-      if (old)
-        socket->socketEvent.disconnect(*old);
+      if (link)
+        socket->socketEvent.disconnect(*link);
       setErrorAndRemoveRequest(sr->promise, boost::get<std::string>(data), requestId);
       return;
     }
@@ -196,8 +201,8 @@ namespace qi {
 
     if (failure)
     {
-      if (old)
-        socket->socketEvent.disconnect(*old);
+      if (link)
+        socket->socketEvent.disconnect(*link);
       if (_enforceAuth)
       {
         std::stringstream error;
@@ -238,8 +243,8 @@ namespace qi {
     if (authStateIt == authData.end() || authStateIt->second.to<unsigned int>() < AuthProvider::State_Error
         || authStateIt->second.to<unsigned int>() > AuthProvider::State_Done)
     {
-      if (old)
-        socket->socketEvent.disconnect(*old);
+      if (link)
+        socket->socketEvent.disconnect(*link);
       const std::string error = "Invalid authentication state token.";
       setErrorAndRemoveRequest(sr->promise, error, requestId);
       qiLogVerbose() << error;
@@ -248,8 +253,8 @@ namespace qi {
     if (authData[AuthProvider::State_Key].to<unsigned int>() == AuthProvider::State_Done)
     {
       qi::Future<void> metaObjFut;
-      if (old)
-        socket->socketEvent.disconnectAsync(*old);
+      if (link)
+        socket->socketEvent.disconnectAsync(*link);
       QI_ASSERT_NULL(sr->remoteObject);
       auto remoteObject =
         RemoteObject::makePtr(sr->serviceInfo.serviceId(), Message::GenericObject_Main,
@@ -318,7 +323,7 @@ namespace qi {
         dummy.setFunction(qi::Message::ServerFunction_Authenticate);
         dummy.setValue(AnyValue::from(cm), typeOf<CapabilityMap>()->signature());
         onAuthentication(MessageSocket::SocketEventData(dummy), requestId, socket,
-                         ClientAuthenticatorPtr(new NullClientAuthenticator), SignalSubscriberPtr());
+                         ClientAuthenticatorPtr(new NullClientAuthenticator), {});
         mustSetPromise = false;
       } catch (const std::exception& e) {
         qiLogWarning() << "SessionService Remote Exception: " << e.what();
@@ -337,12 +342,29 @@ namespace qi {
         authCaps[AuthProvider::UserAuthPrefix + it->first] = it->second;
       }
     }
-    SignalSubscriberPtr protSubscriber(new SignalSubscriber);
-    *protSubscriber = socket->socketEvent.connect(track(
-        [=](const MessageSocket::SocketEventData& data) {
-          onAuthentication(data, requestId, socket, authenticator, protSubscriber);
-        },
-        this));
+
+    // Listen to the socket event so that we may try to authenticate to the server.
+    {
+      // Create a signal link that is shared and synchronized. It is read from
+      // the signal callback and set in the current function, as it is the
+      // result of the connection of the callback on the signal.
+      using SyncSignalLink = boost::synchronized_value<SignalLink>;
+      std::shared_ptr<SyncSignalLink> ptrSyncSignalLink = std::make_shared<SyncSignalLink>();
+
+      // Capture the socket through a weak pointer to prevent a shared
+      // reference cycle, as the signal is owned by the socket and a signal
+      // owns its subscribers.
+      const auto weakSocket = ka::weak_ptr(socket);
+      auto syncSignalLink = ptrSyncSignalLink->synchronize();
+      *syncSignalLink = socket->socketEvent.connect(track(
+          [=](const MessageSocket::SocketEventData& data) {
+            auto socket = weakSocket.lock();
+            if (!socket) return;
+            auto lockSignalLink = ptrSyncSignalLink->synchronize();
+            onAuthentication(data, requestId, socket, authenticator, *lockSignalLink);
+          }, this));
+    }
+
     mustSetPromise = false;
     Message msgCapabilities;
     msgCapabilities.setFunction(Message::ServerFunction_Authenticate);
@@ -545,16 +567,11 @@ namespace qi {
 
         if (protocol != "")
         {
-          std::vector<qi::Url>::const_iterator it = si.endpoints().begin();
-
-          for (;
-               it != si.endpoints().end() && it->protocol() != protocol;
-               it++)
-          {
-            continue;
-          }
-
-          if (it == si.endpoints().end())
+          auto endpoints = si.endpoints();
+          const auto hasExpectedProtocol = [&](const auto& url) {
+            return url.protocol() == protocol;
+          };
+          if (std::none_of(endpoints.begin(), endpoints.end(), hasExpectedProtocol))
           {
             std::stringstream ss;
             ss << "No " << protocol << " endpoint available for service:" << sr->serviceInfo.name()

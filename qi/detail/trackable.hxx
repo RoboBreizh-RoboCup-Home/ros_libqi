@@ -10,9 +10,10 @@
 
 #include <type_traits>
 #include <boost/function.hpp>
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
 #include <boost/bind.hpp>
+#undef BOOST_BIND_GLOBAL_PLACEHOLDERS
 #include <boost/weak_ptr.hpp>
-#include <boost/function_types/result_type.hpp>
 
 namespace qi
 {
@@ -23,14 +24,14 @@ namespace qi
   : _wasDestroyed(false)
   {
     T* thisAsT = static_cast<T*>(this);
-    _ptr = boost::shared_ptr<T>(thisAsT, boost::bind(&Trackable::_destroyed, _1));
+    _ptr = boost::shared_ptr<T>(thisAsT, boost::bind(&Trackable::_destroyed, std::placeholders::_1));
   }
 
   template<typename T>
   inline Trackable<T>::Trackable(T* ptr)
     : _wasDestroyed(false)
   {
-    _ptr = boost::shared_ptr<T>(ptr, boost::bind(&Trackable::_destroyed, _1));
+    _ptr = boost::shared_ptr<T>(ptr, boost::bind(&Trackable::_destroyed, std::placeholders::_1));
   }
 
   template<typename T>
@@ -135,7 +136,7 @@ namespace qi
       template <typename F>
       using wrap_type = typename std::decay<F>::type;
       template <typename F>
-      static wrap_type<F> wrap(const T& arg, F&& func, boost::function<void()> onFail)
+      static wrap_type<F> wrap(const T& /*arg*/, F&& func, boost::function<void()> /*onFail*/)
       {
         return std::forward<F>(func);
       }
@@ -186,7 +187,7 @@ namespace qi
       template <typename F>
       using wrap_type = typename std::decay<F>::type;
       template <typename F>
-      static wrap_type<F> wrap(T arg, F&& func, boost::function<void()> onFail)
+      static wrap_type<F> wrap(T /*arg*/, F&& func, boost::function<void()> /*onFail*/)
       {
         return std::forward<F>(func);
       }

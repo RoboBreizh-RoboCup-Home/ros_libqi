@@ -66,13 +66,6 @@ void SetValue2::delayExchangeP(qi::MilliSeconds delay, int value, qi::Promise<in
   result.setValue(delayExchange(delay, value));
 }
 
-qi::Future<int> SetValue2::asyncDelayExchange(qi::MilliSeconds delay, int value)
-{
-  qi::Promise<int> promise;
-  std::thread(&SetValue2::delayExchangeP, this, delay, value, promise);
-  return promise.future();
-}
-
 int block(int /*i*/, qi::Future<void> f)
 {
   f.wait();
@@ -216,8 +209,9 @@ TEST_F(FutureFixture, PromiseSetWhileWaitingOnFuture)
 {
   qi::Promise<void> p;
   auto f = p.future();
-  std::async(std::launch::async, [&]{ p.setValue(nullptr); });
+  auto setValue = std::async(std::launch::async, [&]{ p.setValue(nullptr); });
   ASSERT_EQ(qi::FutureState_FinishedWithValue, f.waitFor(qi::MilliSeconds{300}));
+  setValue.get();
 }
 
 void producer(qi::Promise<int> pro) {
@@ -695,7 +689,7 @@ TEST(FutureTestThen, ThenCancel)
   ASSERT_TRUE(f.hasValue());
 }
 
-int fail(int f)
+int fail(int)
 {
   throw std::runtime_error("fail");
 }
@@ -1452,7 +1446,7 @@ struct FutureValue : testing::Test {
 using unit_types = testing::Types<qi::UnitFuture, UnitFutureSync>;
 
 // Make `FutureValue` tests with `Future` and `FutureSync`.
-TYPED_TEST_CASE(FutureValue, unit_types);
+TYPED_TEST_SUITE(FutureValue, unit_types);
 
 namespace
 {
@@ -1583,3 +1577,22 @@ TEST(FutureErrorFromException, WithTransfo)
   EXPECT_EQ(0u, err.find(prefix)) << err;
   EXPECT_NE(std::string::npos, err.find("an exception"));
 }
+
+TEST(ToAnyValueFuture, Basic)
+{
+  using namespace qi;
+  Promise<int> prom;
+  auto fut = toAnyValueFuture(prom.future());
+  prom.setValue(42);
+  EXPECT_EQ(AnyValue::from(42), fut.value());
+}
+
+TEST(ToAnyValueFuture, Void)
+{
+  using namespace qi;
+  Promise<void> prom;
+  auto fut = toAnyValueFuture(prom.future());
+  prom.setValue(nullptr);
+  EXPECT_EQ(AnyValue::make<void>(), fut.value());
+}
+

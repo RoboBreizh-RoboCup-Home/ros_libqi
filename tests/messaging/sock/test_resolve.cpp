@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <boost/shared_ptr.hpp>
 #include <boost/optional.hpp>
+#include <boost/optional/optional_io.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <gtest/gtest.h>
 #include <src/messaging/sock/resolve.hpp>
@@ -70,7 +71,7 @@ struct ConnectSocketFun
     Promise<ErrorCode<N>> promise;
     ConnectSocket<N, SslSocket<N>> connect{io};
     SslContext<N> context { Method<SslContext<N>>::tlsv12 };
-    connect(url, SslEnabled{true}, [&]{ return makeSslSocketPtr<N>(io, context); }, IpV6Enabled{false},
+    connect(url, [&]{ return makeSslSocketPtr<N>(io, context); }, IpV6Enabled{false},
       HandshakeSide<SslSocket<N>>::client,
       [=](ErrorCode<N> err, SslSocketPtr<N>) mutable {
         promise.setValue(err);
@@ -88,7 +89,7 @@ struct ConnectSocketFutureFun
   {
     ConnectSocketFuture<N, SslSocket<N>> connect{io};
     SslContext<N> context { Method<SslContext<N>>::tlsv12 };
-    connect(url, SslEnabled{ true }, [&] { return makeSslSocketPtr<N>(io, context); },
+    connect(url, [&] { return makeSslSocketPtr<N>(io, context); },
             IpV6Enabled{ false }, HandshakeSide<SslSocket<N>>::client);
     return stringToError(connect.complete().error());
   }
@@ -117,7 +118,7 @@ using sequences = testing::Types<
   qi::sock::ConnectSocketFun<qi::sock::NetworkAsio>, qi::sock::ConnectSocketFutureFun<qi::sock::NetworkAsio>
 >;
 
-TYPED_TEST_CASE(NetResolveUrl, sequences);
+TYPED_TEST_SUITE(NetResolveUrl, sequences);
 
 TYPED_TEST(NetResolveUrl, WrongUrl)
 {

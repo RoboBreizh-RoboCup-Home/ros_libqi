@@ -155,10 +155,21 @@ namespace qi { namespace sock {
 ///
 /// ## NetSslContext
 /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-/// concept NetSslContext(C) =
-///      Method<C>: NetSslContextMethod
-///   && With Method<C> method, the following is valid:
-///       C sslContext(method);
+/// concept NetSslContext(C, V) =
+//       Regular(V)
+///   && Method<C>: NetSslContextMethod
+///   && Options<C>: Regular
+///   && With Method<C> method,
+///           Options<C> opt,
+///           V verifyMode,
+///           std::string fileName, the following is valid:
+///        C sslContext(method);
+///     && Options<C> osv2  = C::no_sslv2;
+///     && Options<C> osv3  = C::no_sslv3;
+///     && Options<C> otv1  = C::no_tlsv1;
+///     && Options<C> otv11 = C::no_tlsv1_1;
+///     && sslContext.set_options(opt);
+///     && sslContext.set_verify_mode(verifyMode)
 /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 /// An SSL context used to construct an SSL socket.
 ///
@@ -175,23 +186,21 @@ namespace qi { namespace sock {
 ///
 /// ## NetSslSocket
 /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-/// concept NetSslSocket(S, O, C, V) =
+/// concept NetSslSocket(S, O, C) =
 ///      NetIoService(O)
 ///   && NetSslContext(C)
-///   && Regular(V)
 ///   && HandshakeSide<S>: NetHandshakeSide
 ///   && Lowest<S>: NetLowestSocket
+///   && Executor<S>: Regular
 ///   && With O ioServiceLValue,
 ///           C sslContext,
-///           V sslVerifyMode,
 ///           HandshakeSide<S> handshakeSide,
 ///           NetHandler handler, the following are valid:
 ///        S sslSocket{ioServiceLValue, sslContext};
-///     && O& io = sslSocket.get_io_service();
-///     && sslSocket.set_verify_mode(sslVerifyMode)
 ///     && sslSocket.async_handshake(handshakeSide, handler)
 ///     && Lowest<S>& l = sslSocket.lowest_layer();
 ///     && auto& n = sslSocket.next_layer();
+///     && Executor<S>& e = sslSocket.get_executor();
 /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 /// A socket that can send and receive data.
 /// The sending and receiving is done with external functions.
@@ -215,8 +224,7 @@ namespace qi { namespace sock {
 ///           S socket,
 ///           const NetHandler handler,
 ///           E& errorCode, the following are valid:
-///          I& io = acceptor.get_io_service();
-///       && acceptor.open(endpoint.protocol());
+///          acceptor.open(endpoint.protocol());
 ///       && bool b = const_acceptor.is_open();
 ///       && acceptor.set_option(O{reuse});
 ///       && acceptor.bind(endpoint);
@@ -262,7 +270,6 @@ namespace qi { namespace sock {
 ///        R resolver{ioServiceLValue};
 ///     && resolver.async_resolve(query, resolveHandler)
 ///     && resolver.cancel();
-///     && NetIoService& io = resolver.get_io_service();
 ///     && If `resolver` is destroyed before `resolveHandler` has been called,
 ///         `resolveHandler` must eventually be called with an error equal to
 ///         `operationAborted<E>()`
@@ -278,6 +285,7 @@ namespace qi { namespace sock {
 ///   && Resolver<N>: NetResolver
 ///   && SslContext<N>: NetSslContext
 ///   && SslSocket<N>: NetSslSocket
+///   && SslVerifyMode<N>: Regular
 ///   && SocketOptionNoDelay<N>: NetOption
 ///   && AcceptOptionReuseAddress<N>: NetOption
 ///   && ErrorCode<N>: NetErrorCode
@@ -293,9 +301,16 @@ namespace qi { namespace sock {
 ///           std::size_t maxSizeInBytes,
 ///           SslSocket<N> sslSocketLValue,
 ///           SslContext<N> sslContextLValue,
-///           NetTransferHandler transferHandler, the following is valid:
+///           NetTransferHandler transferHandler,
+///           std::string hostname,
+///           Endpoint<Lowest<SslSocket<N>>> clientEndpoint,
+///           const ssl::ClientConfig clientSslConfig,
+///           const ssl::ServerConfig serverSslConfig, the following are valid:
 ///        IoService<N>& io = N::defaultIoService();
-///        Regular v = N::sslVerifyNone();
+///     && IoService<N>& io = N::getIoService(sslSocketLValue)
+///     && SslVerifyMode<N> vn = N::sslVerifyNone();
+///     && SslVerifyMode<N> vp = N::sslVerifyPeer();
+///     && SslVerifyMode<N> vf = N::sslVerifyFailIfNoPeerCert();
 ///     && N::setSocketNativeOptionsWindows(handle, i) if compiled on Windows
 ///     && N::setSocketNativeOptionsLinux(handle, i) if compiled on Linux
 ///     && N::setSocketNativeOptionsMacOs(handle) if compiled on MacOs
@@ -310,6 +325,8 @@ namespace qi { namespace sock {
 ///     && const_cstr = N::clientCipherList()
 ///     && const_cstr = N::serverCipherList()
 ///     && ok = N::trySetCipherListTls12AndBelow(sslContextLValue, const_cstr)
+///     && N::applyConfig(sslContextLValue, clientSslConfig, hostname)
+///     && N::applyConfig(sslContextLValue, serverSslConfig, clientEndpoint)
 /// ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 /// Gives access to all types and functions handling low-level network operations:
 /// - SSL socket

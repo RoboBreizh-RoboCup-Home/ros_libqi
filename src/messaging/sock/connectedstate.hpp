@@ -25,10 +25,10 @@ namespace qi
     ///
     /// NetSslSocket S
     template<typename S>
-    Url remoteEndpoint(S& socket, bool ssl)
+    Url remoteEndpoint(S& socket, TcpScheme scheme)
     {
       const auto endpoint = socket.lowest_layer().remote_endpoint();
-      return url(endpoint, SslEnabled{ssl});
+      return url(endpoint, scheme);
     }
 
     /// Ouput of the connected state.
@@ -188,7 +188,7 @@ namespace qi
         auto ioServiceStranded(Proc&& p)
           -> decltype(StrandTransfo<N>{std::declval<IoService<N>*>()}(std::forward<Proc>(p)))
         {
-          return StrandTransfo<N>{&socket()->get_io_service()}(std::forward<Proc>(p));
+          return StrandTransfo<N>{ &N::getIoService(*socket()) }(std::forward<Proc>(p));
         }
 
         ka::data_bound_transfo_t<std::shared_ptr<Impl>> lifetimeTransfo()
@@ -198,7 +198,7 @@ namespace qi
 
         StrandTransfo<N> syncTransfo()
         {
-          return {&(*socket()).get_io_service()};
+          return { &N::getIoService(*socket()) };
         }
       };
       std::shared_ptr<Impl> _impl;
@@ -223,9 +223,9 @@ namespace qi
       {
         return _impl->_completePromise->future();
       }
-      Url remoteEndpoint(SslEnabled ssl) const
+      Url remoteEndpoint(TcpScheme scheme) const
       {
-        return sock::remoteEndpoint(*_impl->socket(), *ssl);
+        return sock::remoteEndpoint(*_impl->socket(), scheme);
       }
       void stop(Promise<void> disconnectedPromise = Promise<void>{})
       {
@@ -276,7 +276,7 @@ namespace qi
     template<typename N, typename S>
     template<typename Proc>
     void Connected<N, S>::Impl::start(SslEnabled ssl, size_t maxPayload, Proc onReceive,
-        qi::int64_t messageHandlingTimeoutInMus)
+        qi::int64_t /*messageHandlingTimeoutInMus*/)
     {
       auto self = shared_from_this();
       auto life = lifetimeTransfo();

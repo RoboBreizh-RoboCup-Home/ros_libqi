@@ -28,7 +28,9 @@
 # include <boost/shared_ptr.hpp>
 # include <boost/make_shared.hpp>
 # include <boost/function.hpp>
+#define BOOST_BIND_GLOBAL_PLACEHOLDERS
 # include <boost/bind.hpp>
+#undef BOOST_BIND_GLOBAL_PLACEHOLDERS
 # include <boost/thread/recursive_mutex.hpp>
 # include <boost/exception/diagnostic_information.hpp>
 
@@ -282,12 +284,6 @@ namespace qi {
     {
       return valueCopy();
     }
-
-    /** same as value() with an infinite timeout.
-     */
-    QI_API_DEPRECATED_MSG("Use either `then`, `andThen`, `value` or `wait` functions instead.")
-    inline operator const ValueTypeCast&() const
-    { return _p->value(FutureTimeout_Infinite); }
 
     /** Wait for future to contain a value or an error
         @param msecs Maximum time to wait in milliseconds, 0 means return immediately.
@@ -745,8 +741,6 @@ namespace qi {
     boost::shared_ptr<const T> valueSharedPtr(int msecs = FutureTimeout_Infinite) const {
       _sync = false; return _future.valueSharedPtr(msecs);
     }
-    QI_API_DEPRECATED_MSG("Use either `then`, `andThen`, `value` or `wait` functions instead.")
-    operator const typename Future<T>::ValueTypeCast&() const          { _sync = false; return _future.value(); }
     FutureState wait(int msecs = FutureTimeout_Infinite) const         { _sync = false; return _future.wait(msecs); }
     FutureState wait(qi::Duration duration) const                      { _sync = false; return _future.wait(duration); }
     FutureState waitFor(qi::Duration duration) const                   { _sync = false; return _future.waitFor(duration); }

@@ -12,8 +12,6 @@
 
 #include <boost/preprocessor.hpp>
 #include <boost/function.hpp>
-#include <boost/type_traits/is_function.hpp>
-#include <boost/mpl/if.hpp>
 
 #include <qi/log.hpp>
 #include <qi/api.hpp>
@@ -148,12 +146,19 @@ namespace qi{
     /// Get the type of the pointed element
     virtual TypeInterface* pointedType() = 0;
     /// Get the pointed element (must not be destroyed)
+    /// @throws A `NullPtrException` if the pointer is null.
     virtual AnyReference dereference(void* storage) = 0;
     /// Set new pointee value. pointer must be a *pointer* to type pointedType()
     virtual void set(void** storage, AnyReference pointer) = 0;
     /// Set new pointee value. pointer must be a *pointer* to type pointedType()
     virtual void setPointee(void** storage, void* pointer) = 0;
     TypeKind kind() override { return TypeKind_Pointer; }
+  };
+
+  /// This exception type denotes an attempt at dereferencing a null pointer.
+  struct NullPtrException : std::runtime_error
+  {
+    NullPtrException();
   };
 
   /**
@@ -286,16 +291,16 @@ namespace qi{
     */
 
     /// Fill missing fields caused by conversion from a different struct. Return whether fill succeeded.
-    virtual bool convertFrom(std::map<std::string, ::qi::AnyValue>& fields,
-                             const std::vector<std::tuple<std::string, TypeInterface*>>& missing,
-                             const std::map<std::string, ::qi::AnyReference>& dropfields)
+    virtual bool convertFrom(std::map<std::string, ::qi::AnyValue>& /*fields*/,
+                             const std::vector<std::tuple<std::string, TypeInterface*>>& /*missing*/,
+                             const std::map<std::string, ::qi::AnyReference>& /*dropfields*/)
     {
       return false;
     }
     /// Fill missing fields caused by conversion to a different struct. Return whether fill succeeded.
-    virtual bool convertTo(std::map<std::string, ::qi::AnyValue>& fields,
-                           const std::vector<std::tuple<std::string, TypeInterface*>>& missing,
-                           const std::map<std::string, ::qi::AnyReference>& dropfields)
+    virtual bool convertTo(std::map<std::string, ::qi::AnyValue>& /*fields*/,
+                           const std::vector<std::tuple<std::string, TypeInterface*>>& /*missing*/,
+                           const std::map<std::string, ::qi::AnyReference>& /*dropfields*/)
     {
       return false;
     }

@@ -1,9 +1,7 @@
+qi_create_module(foo foo.cpp NO_INSTALL EXCLUDE_FROM_ALL)
 
-cmake_minimum_required(VERSION 2.8)
-project(foo-module)
-find_package(qibuild)
-qi_sanitize_compile_flags(HIDDEN_SYMBOLS)
+add_executable(example_foo EXCLUDE_FROM_ALL footest.cpp)
+target_link_libraries(example_foo PRIVATE qi::qi)
+add_dependencies(example_foo foo)
 
-qi_create_module(foo foo.cpp NO_INSTALL)
-
-qi_create_bin(footest footest.cpp DEPENDS QI NO_INSTALL)
+add_dependencies(examples example_foo)

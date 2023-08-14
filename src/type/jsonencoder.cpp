@@ -7,7 +7,13 @@
 #include <string>
 #include <iomanip>
 #ifdef WITH_BOOST_LOCALE
+// Disable deprecation warnings about `std::auto_ptr`.
+#  define BOOST_LOCALE_HIDE_AUTO_PTR
 #  include <boost/locale.hpp>
+#  undef BOOST_LOCALE_HIDE_AUTO_PTR
+#else
+#  include <locale>
+#  include <codecvt>
 #endif
 #include <qi/jsoncodec.hpp>
 #include <qi/anyobject.hpp>
@@ -73,18 +79,18 @@ namespace qi {
   std::string add_esc_chars(const std::wstring& s, JsonOption jsonPrintOption)
   {
     using Iter_type = std::wstring::const_iterator;
-    using Char_type = std::wstring::value_type;
 
     std::string result;
     const Iter_type end( s.end() );
 
     for(Iter_type i = s.begin(); i != end; ++i)
     {
-      const Char_type c(*i);
+      const wchar_t c = *i;
       if (qi::numericIsInRange<char>(c) &&
           add_esc_char(static_cast<char>(c), result, jsonPrintOption))
         continue;
-      const wint_t unsigned_c = qi::numericConvert<wint_t>(c);
+      // Any `wchar_t` is guaranteed to be representable as a `wint_t`.
+      const wint_t unsigned_c = static_cast<wint_t>(c);
 
       // 127 is the end of printable characters in ASCII table.
       if(iswprint(unsigned_c) && unsigned_c < 127)
@@ -193,7 +199,9 @@ namespace qi {
 #ifdef WITH_BOOST_LOCALE
       out << "\"" << add_esc_chars(boost::locale::conv::to_utf<wchar_t>(std::string(data, size), "UTF-8"), jsonPrintOption) << "\"";
 #else
-      out << "\"" << add_esc_chars(std::wstring(data, data+size), jsonPrintOption) << "\"";
+      std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
+      std::wstring wideData = converter.from_bytes(data, data + size);
+      out << "\"" << add_esc_chars(wideData, jsonPrintOption) << "\"";
 #endif
     }
 
@@ -243,27 +251,27 @@ namespace qi {
       out << "}";
     }
 
-    void visitObject(GenericObject value)
+    void visitObject(GenericObject)
     {
       // TODO: implement?
       qiLogError() << "JSON Error: Serializing an object without a shared pointer";
       out << "\"Error: no serialization for object\"";
     }
 
-    void visitAnyObject(AnyObject& value)
+    void visitAnyObject(AnyObject&)
     {
       // TODO: implement?
       qiLogError() << "JSON Error: Serializing an object without a shared pointer";
       out << "\"Error: no serialization for object\"";
     }
 
-    void visitPointer(AnyReference pointee)
+    void visitPointer(AnyReference)
     {
       qiLogError() << "JSON Error: error a pointer!!!";
       out << "\"Error: no serialization for pointer\"";
     }
 
-    void visitTuple(const std::string &name, const AnyReferenceVector &vals, const std::vector<std::string> &annotations)
+    void visitTuple(const std::string& /*name*/, const AnyReferenceVector &vals, const std::vector<std::string> &annotations)
     {
       //is the tuple is annotated serialize as an object
       if (annotations.size()) {
@@ -303,7 +311,7 @@ namespace qi {
       }
     }
 
-    void visitRaw(AnyReference raw)
+    void visitRaw(AnyReference)
     {
       //TODO: implement buffer support
       qiLogError() << "JSON Error: raw data encoder not implemented!!!";

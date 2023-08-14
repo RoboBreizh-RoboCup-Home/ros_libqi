@@ -1,4 +1,7 @@
+// Disable deprecation warnings about `std::auto_ptr`.
+#define BOOST_LOCALE_HIDE_AUTO_PTR
 #include <boost/locale.hpp>
+#undef BOOST_LOCALE_HIDE_AUTO_PTR
 #include <locale>
 #include <iostream>
 
@@ -7,7 +10,7 @@
  * Use of this source code is governed by a BSD-style license that can be
  * found in the COPYING file.
  */
-int main(int argc, char *argv[])
+int main(int, char *[])
 {
   // Create string with one weird (ñ) char
   char iso[] = "La Pe\361a";

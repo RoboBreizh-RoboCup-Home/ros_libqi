@@ -8,6 +8,7 @@
 #include <future>
 #include <vector>
 #include <string>
+#include <thread>
 
 #include <gtest/gtest.h>
 
@@ -140,6 +141,7 @@ TEST(QiService, RemoteObjectCacheABAUnregister)
 TEST(QiService, RemoteObjectCacheABANewServer)
 {
   TestSessionPair p;
+
   auto ses = qi::makeSession();
   if (p.server() == p.client()) // we close and not unregister, so does not work in direct mode
     return;
@@ -213,7 +215,8 @@ public:
   qi::Property<int> prop;
 };
 
-void inc (qi::Atomic<int>* daInt, int unused)
+// Second parameter is unused, increment step is always 1.
+void inc (qi::Atomic<int>* daInt, int)
 {
   ++(*daInt);
 }
@@ -341,7 +344,7 @@ TEST(QiService, RemoteServiceRegistrationAfterDisconnection)
   // Disconnect the provider, it should unregister any related services
   server->close();
   qiLogVerbose() << "close finished";
-  qi::Future<void> fc = server->connect(p.serviceDirectoryEndpoints()[0]);
+  qi::Future<void> fc = server->connect(test::url(*p.sd()));
   fc.wait(3000);
   if (fc.hasError())
     qiLogError() << fc.error();

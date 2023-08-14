@@ -925,7 +925,7 @@ struct FunctionalSemiLift0 : testing::Test
 {
 };
 
-TYPED_TEST_CASE(FunctionalSemiLift0, types);
+TYPED_TEST_SUITE(FunctionalSemiLift0, types);
 
 TYPED_TEST(FunctionalSemiLift0, NonVoidCodomain) {
   using namespace ka;
@@ -952,7 +952,7 @@ template<typename T>
 struct FunctionalSemiLift1 : testing::Test {
 };
 
-TYPED_TEST_CASE(FunctionalSemiLift1, void_types);
+TYPED_TEST_SUITE(FunctionalSemiLift1, void_types);
 
 TYPED_TEST(FunctionalSemiLift1, VoidCodomain) {
   using namespace ka;
@@ -1014,7 +1014,7 @@ using bound_proc_types = testing::Types<
   bound_transfo_t const>;
 
 // We perform all tests with `ka::data_bound_proc` and `ka::data_bound_transfo`.
-TYPED_TEST_CASE(FunctionalDataBoundProc, bound_proc_types);
+TYPED_TEST_SUITE(FunctionalDataBoundProc, bound_proc_types);
 
 namespace {
   // Returns the next element.
@@ -1258,7 +1258,7 @@ TEST(FunctionalApply, Tuple) {
     return std::make_tuple(i, c, f);
   };
   auto const args = std::make_tuple(5, 'a', 3.14f);
-  ASSERT_EQ(args, apply(g, args));
+  ASSERT_EQ(args, ka::apply(g, args));
   ASSERT_EQ(args, apply(g)(args));
   auto const h = apply(g);
   ASSERT_EQ(args, h(args));
@@ -1270,7 +1270,7 @@ TEST(FunctionalApply, Pair) {
     return std::make_pair(i, c);
   };
   auto const args = std::make_pair(5, 'a');
-  ASSERT_EQ(args, apply(g, args));
+  ASSERT_EQ(args, ka::apply(g, args));
   ASSERT_EQ(args, apply(g)(args));
   auto const h = apply(g);
   ASSERT_EQ(args, h(args));
@@ -1282,7 +1282,7 @@ TEST(FunctionalApply, Array) {
     return std::array<int, 4>{{i, j, k, l}};
   };
   std::array<int, 4> const args {{0, 1, 2, 3}};
-  ASSERT_EQ(args, apply(g, args));
+  ASSERT_EQ(args, ka::apply(g, args));
   ASSERT_EQ(args, apply(g)(args));
   auto const h = apply(g);
   ASSERT_EQ(args, h(args));
@@ -1309,10 +1309,10 @@ TEST(FunctionalApply, MoveOnly) {
   auto const res = std::make_tuple(5, 'a', 3.14f);
   {
     auto args = std::make_tuple(move_only_t<int>{5}, move_only_t<char>{'a'}, move_only_t<float>{3.14f});
-    ASSERT_EQ(res, apply(g, std::move(args)));
+    ASSERT_EQ(res, ka::apply(g, std::move(args)));
   } {
     auto args = std::make_tuple(move_only_t<int>{5}, move_only_t<char>{'a'}, move_only_t<float>{3.14f});
-    ASSERT_EQ(res, apply(g)(std::move(args)));
+    ASSERT_EQ(res, ka::apply(g)(std::move(args)));
   } {
     auto args = std::make_tuple(move_only_t<int>{5}, move_only_t<char>{'a'}, move_only_t<float>{3.14f});
     auto const h = apply(g);
@@ -1504,7 +1504,7 @@ template<typename T>
 struct FunctionalScopeLockWeakPtr : testing::Test {
 };
 
-TYPED_TEST_CASE(FunctionalScopeLockWeakPtr, SharedPtrTypes);
+TYPED_TEST_SUITE(FunctionalScopeLockWeakPtr, SharedPtrTypes);
 
 TYPED_TEST(FunctionalScopeLockWeakPtr, SuccessfulLock) {
   using namespace ka;
@@ -1539,7 +1539,7 @@ namespace {
 
 using MutexTypes = testing::Types<std::mutex,
                                   std::recursive_mutex,
-#if !BOOST_OS_ANDROID
+#if !ANDROID
                                   std::timed_mutex,
                                   std::recursive_timed_mutex,
 #endif
@@ -1553,7 +1553,7 @@ template<typename T>
 struct FunctionalScopeLockMutexes : testing::Test {
 };
 
-TYPED_TEST_CASE(FunctionalScopeLockMutexes, MutexTypes);
+TYPED_TEST_SUITE(FunctionalScopeLockMutexes, MutexTypes);
 
 TYPED_TEST(FunctionalScopeLockMutexes, Mutexes) {
   using namespace ka;

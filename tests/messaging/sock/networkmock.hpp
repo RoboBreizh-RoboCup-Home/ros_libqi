@@ -11,6 +11,7 @@
 #include <ka/moveoncopy.hpp>
 #include <ka/utility.hpp>
 #include <ka/macroregular.hpp>
+#include <qi/messaging/ssl/ssl.hpp>
 #include <src/messaging/sock/traits.hpp>
 #include <src/messaging/sock/error.hpp>
 #include <src/messaging/sock/common.hpp>
@@ -95,20 +96,42 @@ namespace mock
         return ka::compose(ka::constant_function(), _strand.schedulerFor(ka::fwd<Proc>(p)));
       }
     };
+    /// NetSslSocket S
+    template<typename S>
+    static io_service_type& getIoService(const S&)
+    {
+      return defaultIoService();
+    }
+
+    struct ssl_verify_mode_type
+    {
+      enum class ValueType
+      {
+        verifyNone = 0,
+        verifyPeer = 1,
+        verifyFailIfNoPeerCert = 2,
+      };
+      ValueType value;
+      ssl_verify_mode_type operator|(ssl_verify_mode_type o) const
+      {
+        return { static_cast<ValueType>(static_cast<int>(value) | static_cast<int>(o.value)) };
+      }
+    };
+    struct verify_context {};
     struct ssl_context_type
     {
       enum class method {tlsv12};
-      enum option {no_sslv2, no_sslv3, no_tlsv1, no_tlsv1_1};
-      friend option operator|(option a, option b) {
-        return option(static_cast<int>(a) | static_cast<int>(b));
+      enum options {no_sslv2, no_sslv3, no_tlsv1, no_tlsv1_1};
+      friend options operator|(options a, options b) {
+        return options(static_cast<int>(a) | static_cast<int>(b));
       }
       method m;
       ssl_context_type() = default;        // The 2 ctors are to avoid the
       ssl_context_type(method m) : m(m) {} // "not initialized" warning about m.
-      void set_options(option) {}
-    };
-    struct ssl_verify_mode_type
-    {
+      void set_options(options) {}
+
+      using _anyVerifyModeSetter = std::function<void(ssl_verify_mode_type)>;
+      static _anyVerifyModeSetter set_verify_mode;
     };
     struct _endpoint
     {
@@ -120,6 +143,9 @@ namespace mock
         bool is_v6() const {return _isV6;}
         std::string to_string() const {return _value;}
         KA_GENERATE_FRIEND_REGULAR_OPS_2(_address, _isV6, _value)
+        friend std::ostream& operator<<(std::ostream& os, const _address& a) {
+          return os << "address(isV6=" << a._isV6 << ", value=" << a._value << ")";
+        }
       } _addr;
       _endpoint() = default;
       _address address() const {return _addr;}
@@ -127,12 +153,18 @@ namespace mock
       struct protocol_t {};
       protocol_t protocol() const {return {};}
       KA_GENERATE_FRIEND_REGULAR_OPS_1(_endpoint, _addr)
+      friend std::ostream& operator<<(std::ostream& os, const _endpoint& e) {
+        return os << "endpoint(address=" << e._addr << ")";
+      }
     };
     struct _resolver_entry
     {
       _endpoint _e;
       _endpoint endpoint() const {return _e;}
       KA_GENERATE_FRIEND_REGULAR_OPS_1(_resolver_entry, _e)
+      friend std::ostream& operator<<(std::ostream& os, const _resolver_entry& e) {
+        return os << "entry(endpoint=" << e._e << ")";
+      }
     };
     using _anyHandler = std::function<void (error_code_type)>;
     struct ssl_socket_type
@@ -181,8 +213,6 @@ namespace mock
       };
       io_service_type* _io;
       ssl_socket_type(io_service_type& io, ssl_context_type) : _io(&io) {}
-      io_service_type& get_io_service() {return *_io;}
-      void set_verify_mode(ssl_verify_mode_type) {}
 
       using _anyAsyncHandshaker = std::function<void (handshake_type, _anyHandler)>;
       static _anyAsyncHandshaker async_handshake;
@@ -192,6 +222,9 @@ namespace mock
 
       struct next_layer_type {} _next_layer;
       next_layer_type& next_layer() {return _next_layer;}
+
+      struct executor_type {};
+      executor_type get_executor() { return {}; }
     };
     struct acceptor_type
     {
@@ -199,7 +232,6 @@ namespace mock
       io_service_type& _io;
       using _anyAsyncAccepter = std::function<void (ssl_socket_type::next_layer_type&, _anyHandler)>;
 
-      io_service_type& get_io_service() {return _io;}
       void open(_endpoint::protocol_t) {}
       bool is_open() const {return true;}
       void set_option(accept_option_reuse_address_type) {}
@@ -248,7 +280,6 @@ KA_WARNING_POP()
       using _anyAsyncResolver = std::function<void (query, _anyResolveHandler)>;
       static _anyAsyncResolver async_resolve;
       void cancel() {}
-      io_service_type& get_io_service() {return _io;}
     };
 
     static io_service_type& defaultIoService()
@@ -257,10 +288,9 @@ KA_WARNING_POP()
       return io;
     }
 
-    static ssl_verify_mode_type sslVerifyNone()
-    {
-      return {};
-    }
+    static ssl_verify_mode_type sslVerifyNone() { return { ssl_verify_mode_type::ValueType::verifyNone }; }
+    static ssl_verify_mode_type sslVerifyPeer() { return { ssl_verify_mode_type::ValueType::verifyPeer }; }
+    static ssl_verify_mode_type sslVerifyFailIfNoPeerCert() { return { ssl_verify_mode_type::ValueType::verifyFailIfNoPeerCert }; }
 
     using H = ssl_socket_type::lowest_layer_type::_native_handle;
     static void setSocketNativeOptions(H, int) {}
@@ -305,7 +335,6 @@ KA_WARNING_POP()
     {
 KA_WARNING_PUSH()
 KA_WARNING_DISABLE(4068, pragmas)
-KA_WARNING_DISABLE(, undefined-var-template)
       SocketFunctions<NetSslSocket>::_async_read_socket(s, b, h);
 KA_WARNING_POP()
     }
@@ -315,7 +344,6 @@ KA_WARNING_POP()
     {
 KA_WARNING_PUSH()
 KA_WARNING_DISABLE(4068, pragmas)
-KA_WARNING_DISABLE(, undefined-var-template)
       SocketFunctions<NetSslSocket>::_async_write_socket(s, b, h);
 KA_WARNING_POP()
     }
@@ -355,7 +383,37 @@ KA_WARNING_POP()
     {
       return resultOfTrySetCipherListTls12AndBelow.load();
     }
+
+    using _anyApplyClientConfig = std::function<void (ssl_context_type&, const qi::ssl::ClientConfig&, const std::string&)>;
+    static _anyApplyClientConfig _applyClientConfig;
+    static void applyConfig(ssl_context_type& ctx,
+                            const qi::ssl::ClientConfig& cfg,
+                            const std::string& hostname)
+    {
+      _applyClientConfig(ctx, cfg, hostname);
+    }
+
+    static void applyConfig(ssl_context_type&,
+                            const qi::ssl::ServerConfig&,
+                            ssl_socket_type::lowest_layer_type::endpoint_type)
+    {
+      // Unused at the moment in our tests.
+    }
   };
+
+  template <>
+  Network::_anyAsyncReaderSocket<Network::ssl_socket_type>
+    Network::SocketFunctions<Network::ssl_socket_type>::_async_read_socket;
+  template <>
+  Network::_anyAsyncReaderSocket<qi::sock::SocketWithContext<Network>>
+    Network::SocketFunctions<qi::sock::SocketWithContext<Network>>::_async_read_socket;
+
+  template <>
+  Network::_anyAsyncWriterSocket<Network::ssl_socket_type>
+    Network::SocketFunctions<Network::ssl_socket_type>::_async_write_socket;
+  template <>
+  Network::_anyAsyncWriterSocket<qi::sock::SocketWithContext<Network>>
+      Network::SocketFunctions<qi::sock::SocketWithContext<Network>>::_async_write_socket;
 
 } // namespace mock
 
@@ -486,14 +544,14 @@ namespace mock
   }
 
   template<typename NetSslSocket>
-  inline void defaultAsyncReadSocket(NetSslSocket&, N::_mutable_buffer_sequence b, N::_anyTransferHandler h)
+  inline void defaultAsyncReadSocket(NetSslSocket&, N::_mutable_buffer_sequence, N::_anyTransferHandler h)
   {
     std::thread{[=] {
       h(N::error_code_type{}, 0u);
     }}.detach();
   }
 
-  inline void defaultAsyncReadNextLayer(N::ssl_socket_type::next_layer_type&, N::_mutable_buffer_sequence b, N::_anyTransferHandler h)
+  inline void defaultAsyncReadNextLayer(N::ssl_socket_type::next_layer_type&, N::_mutable_buffer_sequence, N::_anyTransferHandler h)
   {
     std::thread{[=] {
       h(N::error_code_type{}, 0u);
@@ -513,6 +571,14 @@ namespace mock
     std::thread{[=] {
       h(N::error_code_type{}, 0u);
     }}.detach();
+  }
+
+  inline void defaultVerifyModeSetter(N::ssl_verify_mode_type)
+  {
+  }
+
+  inline void defaultApplyClientConfig(N::ssl_context_type&, const qi::ssl::ClientConfig&, const std::string&)
+  {
   }
 
 } // namespace mock

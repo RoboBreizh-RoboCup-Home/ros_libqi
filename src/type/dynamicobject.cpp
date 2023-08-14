@@ -450,12 +450,12 @@ namespace qi
     reinterpret_cast<DynamicObject*>(instance)->metaPost(context, signal, params);
   }
 
-  qi::Future<SignalLink> DynamicObjectTypeInterface::connect(void* instance, AnyObject context, unsigned int event, const SignalSubscriber& subscriber)
+  qi::Future<SignalLink> DynamicObjectTypeInterface::connect(void* instance, AnyObject /*context*/, unsigned int event, const SignalSubscriber& subscriber)
   {
     return reinterpret_cast<DynamicObject*>(instance)->metaConnect(event, subscriber);
   }
 
-  qi::Future<void> DynamicObjectTypeInterface::disconnect(void* instance, AnyObject context, SignalLink linkId)
+  qi::Future<void> DynamicObjectTypeInterface::disconnect(void* instance, AnyObject /*context*/, SignalLink linkId)
   {
     return reinterpret_cast<DynamicObject*>(instance)->metaDisconnect(linkId);
   }
@@ -486,7 +486,7 @@ namespace qi
     qiLogDebug() << "Cleaning up dynamic object " << obj << " delete=" << destroyObject
       << "  custom callback=" << !!onDelete;
     if (onDelete)
-      onDelete(obj);
+      std::move(onDelete)(obj);
     if (destroyObject)
       delete reinterpret_cast<DynamicObject*>(obj->value);
     delete obj;
@@ -519,11 +519,13 @@ namespace qi
     ObjectTypeInterface* type = getDynamicTypeInterface();
 
     auto deleter = [&]() -> boost::function<void(GenericObject*)> {
-    if (destroyObject || onDelete)
-      return boost::bind(&cleanupDynamicObject, _1, destroyObject, onDelete);
-    else
-      return &AnyObject::deleteGenericObjectOnly;
-    }();
+      if (destroyObject || onDelete)
+        return [destroyObject, onDelete = std::move(onDelete)](GenericObject* obj) mutable {
+          cleanupDynamicObject(obj, destroyObject, std::move(onDelete));
+        };
+      else
+        return &AnyObject::deleteGenericObjectOnly;
+      }();
 
     if(!uid)
       uid = obj->uid();

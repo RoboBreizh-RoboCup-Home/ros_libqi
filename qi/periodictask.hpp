@@ -43,7 +43,7 @@ namespace qi
      * If the callback throws, async task will be stopped
      */
     template <typename T>
-    auto setCallback(T&& cb) -> typename std::enable_if<detail::IsAsyncBind<typename std::decay<T>::type>::value>::type
+    auto setCallback(T&& /*cb*/) -> typename std::enable_if<detail::IsAsyncBind<typename std::decay<T>::type>::value>::type
     {
       static_assert(sizeof(T) && false,
           "Don't use PeriodicTask::setCallback(qi::bind(...)) but setCallback(...) directly");
@@ -151,7 +151,7 @@ namespace qi
     inline typename boost::disable_if<
         boost::is_base_of<Actor, typename detail::Unwrap<ARG0>::type>,
         void>::type
-        _connectMaybeActor(const ARG0& arg0)
+        _connectMaybeActor(const ARG0&)
     {
       setStrand(0);
     }

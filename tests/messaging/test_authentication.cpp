@@ -17,6 +17,7 @@
 #include <qi/os.hpp>
 #include <qi/type/dynamicobjectbuilder.hpp>
 #include <qi/application.hpp>
+#include <testssl/testssl.hpp>
 #include "src/messaging/authprovider_p.hpp"
 
 qiLogCategory("TestAuthentication");
@@ -24,18 +25,20 @@ qiLogCategory("TestAuthentication");
 class TestAuthentication : public ::testing::Test
 {
 protected:
-  TestAuthentication()
-    : sd_(qi::makeSession(true)),
-      client_(qi::makeSession(true))
-  {
-  }
-
   void SetUp() override
   {
-    ASSERT_TRUE(sd_->setIdentity(
-                  qi::path::findData("qi", "test/qi.public.aldebaran.lan.key"),
-                  qi::path::findData("qi", "test/qi.public.aldebaran.lan.crt")));
+    qi::Session::Config sdConfig;
+    sdConfig.serverSslConfig = test::ssl::serverConfig(test::ssl::server());
+
+// Ignore use of deprecated Session constructor.
+// Remove when the use of the constructor is removed.
+KA_WARNING_PUSH()
+KA_WARNING_DISABLE(4996, deprecated-declarations)
+    sd_ = qi::SessionPtr(new qi::Session(true, std::move(sdConfig)));
     sd_->listenStandalone("tcps://127.0.0.1:0");
+
+    client_ = qi::SessionPtr(new qi::Session(true));
+KA_WARNING_POP()
   }
 
   void TearDown() override
@@ -121,7 +124,7 @@ namespace {
   class MultiStepProvider : public qi::AuthProvider {
   public:
     MultiStepProvider(int nstep = 2) { step = nstep; }
-    qi::CapabilityMap _processAuth(const qi::CapabilityMap& ad)
+    qi::CapabilityMap _processAuth(const qi::CapabilityMap& /*ad*/)
     {
       qi::CapabilityMap result;
 
@@ -156,7 +159,7 @@ namespace {
 
   class HarshProvider : public qi::AuthProvider {
   public:
-    qi::CapabilityMap _processAuth(const qi::CapabilityMap& ad)
+    qi::CapabilityMap _processAuth(const qi::CapabilityMap& /*ad*/)
     {
        qi::CapabilityMap result;
 

@@ -308,6 +308,38 @@ TEST(TestCall, CallVoid)
   p.server()->unregisterService(serviceID);
 }
 
+struct Add
+{
+  int a;
+  Add(int a) : a(a) {}
+  inline int add(int b) const noexcept { return a + b; }
+};
+QI_REGISTER_OBJECT(Add, add);
+
+TEST(TestCall, CallNoExcept)
+{
+  TestSessionPair p;
+  p.server()->registerService("Add", boost::make_shared<Add>(329)).value();
+  const auto clientAdd = p.client()->service("Add").value();
+  const auto res = clientAdd.call<int>("add", 938);
+  EXPECT_EQ(res, 1267);
+}
+
+TEST(TestCall, CallNoExceptFunctionObject)
+{
+  TestSessionPair p;
+  qi::DynamicObjectBuilder builder;
+  auto add = boost::make_shared<Add>(321);
+  builder.advertiseMethod("addImpl", add.get(), &Add::add);
+  builder.advertiseMethod("add", [](const qi::AnyObject& self, int b) noexcept {
+    return self.call<int>("add", b);
+  });
+  p.server()->registerService("Add", builder.object(add)).value();
+  const auto clientAdd = p.client()->service("Add").value();
+  const auto res = clientAdd.call<int>("add", add, 123);
+  EXPECT_EQ(res, 444);
+}
+
 TEST(TestCall, CallVoidErr)
 {
   std::list<std::pair<std::string, int> >  robots;
@@ -766,8 +798,6 @@ TEST(TestCall, TestObjectPassing)
   unregisteredObj.reset();
   unregisteredObj = unregisteredWeakObj.lock();
   ASSERT_TRUE(unregisteredObj);
-  if (p.client() == p.server())
-    return; // test makes no sense in direct mode
 
   // This will delete the proxy
   qiLogInfo() << logPrefix << "Triggering 'fire(0)' event.";
@@ -778,9 +808,17 @@ TEST(TestCall, TestObjectPassing)
   eventValue = qi::Promise<int>();
   ASSERT_TRUE(test::isStillRunning(eventValue.future(), test::willDoNothing(), qi::MilliSeconds{0}));
 
-  qiLogInfo() << logPrefix << "Triggering 'fire(1)' event.";
-  unregisteredObj.post("fire", 1);
-  ASSERT_TRUE(test::isStillRunning(eventValue.future()));
+  // The following check is only useful if the mode is not "direct". Otherwise,
+  // the `unregisteredObj` is shared by the client and the server (since they
+  // are the same), therefore keeping it alive in this scope ensures that the
+  // signal callback is called. Consequently, in "direct" mode, the `eventValue`
+  // promise ends up being set with a value, which causes the test below to fail.
+  if (p.mode() != TestMode::Mode_Direct)
+  {
+    qiLogInfo() << logPrefix << "Triggering 'fire(1)' event.";
+    unregisteredObj.post("fire", 1);
+    ASSERT_TRUE(test::isStillRunning(eventValue.future()));
+  }
 
   // Check that unregisteredObj is no longer held
   unregisteredObj.reset();
@@ -1135,7 +1173,7 @@ TEST(TestCall, TestInvalidFuture)
   }
 }
 
-void arrrg(int v) {
+void arrrg(int) {
 }
 
 TEST(TestCall, BadArguments)
@@ -1944,7 +1982,7 @@ using ObjectWithReadOnlyPropertyTypes = testing::Types<
 >;
 }
 
-TYPED_TEST_CASE(TestCallReadOnlyProperty, ObjectWithReadOnlyPropertyTypes);
+TYPED_TEST_SUITE(TestCallReadOnlyProperty, ObjectWithReadOnlyPropertyTypes);
 
 TYPED_TEST(TestCallReadOnlyProperty, GetProperty)
 {
